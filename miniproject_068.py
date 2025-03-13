@@ -1,18 +1,35 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import sqlite3
+import mysql.connector
 
-# Database Initialization
+
+mydb = {
+    "host": "localhost",        
+    "user": "root",     
+    "password": "root", 
+    "database": "hardb"  
+}
+
+
 def initialize_database():
-    conn = sqlite3.connect("sofa_showroom.db")
+    conn = mysql.connector.connect(
+        host=mydb["host"],
+        user=mydb["user"],
+        password=mydb["password"]
+    )
+    cursor = conn.cursor()
+    cursor.execute("CREATE DATABASE IF NOT EXISTS hardb")
+    conn.close()
+
+    conn = mysql.connector.connect(**mydb)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sofa_items (
-            sofa_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sofa_name TEXT NOT NULL,
-            sofa_category TEXT NOT NULL,
-            sofa_price REAL NOT NULL,
-            sofa_quantity INTEGER NOT NULL
+            sofa_id INT AUTO_INCREMENT PRIMARY KEY,
+            sofa_name VARCHAR(255) NOT NULL,
+            sofa_category VARCHAR(255) NOT NULL,
+            sofa_price DECIMAL(10,2) NOT NULL,
+            sofa_quantity INT NOT NULL
         )
     """)
     conn.commit()
@@ -20,7 +37,11 @@ def initialize_database():
 
 initialize_database()
 
-# Function to Add Sofa Item
+
+def get_connection():
+    return mysql.connector.connect(**mydb)
+
+
 def add_sofa():
     name = name_entry.get()
     category = category_entry.get()
@@ -34,11 +55,11 @@ def add_sofa():
     try:
         price = float(price)
         quantity = int(quantity)
-        conn = sqlite3.connect("sofa_showroom.db")
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO sofa_items (sofa_name, sofa_category, sofa_price, sofa_quantity)
-            VALUES (?, ?, ?, ?)""",
+            VALUES (%s, %s, %s, %s)""",
             (name, category, price, quantity))
         conn.commit()
         conn.close()
@@ -47,7 +68,7 @@ def add_sofa():
     except ValueError:
         messagebox.showerror("Error", "Price must be a number and Quantity must be an integer")
 
-# Function to Update Sofa Item
+
 def update_sofa():
     selected_item = sofa_table.selection()
     if not selected_item:
@@ -67,12 +88,12 @@ def update_sofa():
     try:
         price = float(price)
         quantity = int(quantity)
-        conn = sqlite3.connect("sofa_showroom.db")
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE sofa_items 
-            SET sofa_name=?, sofa_category=?, sofa_price=?, sofa_quantity=? 
-            WHERE sofa_id=?""",
+            SET sofa_name=%s, sofa_category=%s, sofa_price=%s, sofa_quantity=%s
+            WHERE sofa_id=%s""",
             (name, category, price, quantity, sofa_id))
         conn.commit()
         conn.close()
@@ -81,10 +102,11 @@ def update_sofa():
     except ValueError:
         messagebox.showerror("Error", "Price must be a number and Quantity must be an integer")
 
-# Function to Display Sofa Items
+
 def display_sofas():
+    
     sofa_table.delete(*sofa_table.get_children())
-    conn = sqlite3.connect("sofa_showroom.db")
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM sofa_items")
     items = cursor.fetchall()
@@ -92,8 +114,8 @@ def display_sofas():
         sofa_table.insert("", tk.END, values=item)
     conn.close()
     calculate_total_price()
+   
 
-# Function to Remove Selected Sofa Item
 def remove_sofa():
     selected_item = sofa_table.selection()
     if not selected_item:
@@ -101,35 +123,35 @@ def remove_sofa():
         return
 
     sofa_id = sofa_table.item(selected_item, "values")[0]
-    conn = sqlite3.connect("sofa_showroom.db")
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM sofa_items WHERE sofa_id = ?", (sofa_id,))
+    cursor.execute("DELETE FROM sofa_items WHERE sofa_id = %s", (sofa_id,))
     conn.commit()
     conn.close()
     display_sofas()
     messagebox.showinfo("Success", "Sofa removed!")
 
-# Function to Calculate Total Price
+
 def calculate_total_price():
-    conn = sqlite3.connect("sofa_showroom.db")
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT SUM(sofa_price * sofa_quantity) FROM sofa_items")
     total = cursor.fetchone()[0]
     conn.close()
-    total_label.config(text=f"Total Price: ${total:.2f}" if total else "Total Price: $0.00")
+    total_label.config(text=f"Total Price: Rs.{total:.2f}" if total else "Total Price: RS.0.00")
 
-# GUI Setup
+
 root = tk.Tk()
 root.title("Sofa Showroom Management System")
 root.geometry("600x500")
-root.configure(bg="#E8DAEF")
+root.configure(bg="lavender")
 
-# Frame for Input Fields
-input_frame = tk.Frame(root, bg="#D2B4DE")
+
+input_frame = tk.Frame(root, bg="lavender")
 input_frame.pack(pady=15, padx=20, fill=tk.X)
 
 def create_label_entry(frame, text):
-    tk.Label(frame, text=text, font=("Arial", 12), bg="#D2B4DE").pack(anchor="w", padx=10, pady=2)
+    tk.Label(frame, text=text, font=("Arial", 12), bg="white").pack(anchor="w", padx=10, pady=2)
     entry = tk.Entry(frame, font=("Arial", 12))
     entry.pack(padx=10, pady=2, fill=tk.X)
     return entry
@@ -139,19 +161,19 @@ category_entry = create_label_entry(input_frame, "Category:")
 price_entry = create_label_entry(input_frame, "Price:")
 quantity_entry = create_label_entry(input_frame, "Quantity:")
 
-# Buttons
-button_frame = tk.Frame(root, bg="#E8DAEF")
+
+button_frame = tk.Frame(root, bg="gray")
 button_frame.pack(pady=10)
 
-tk.Button(button_frame, text="Add Sofa", font=("Arial", 12), bg="#27AE60", fg="white", command=add_sofa).pack(padx=10, pady=5, fill=tk.X)
-tk.Button(button_frame, text="Update Sofa", font=("Arial", 12), bg="#2980B9", fg="white", command=update_sofa).pack(padx=10, pady=5, fill=tk.X)
-tk.Button(button_frame, text="Remove Sofa", font=("Arial", 12), bg="#C0392B", fg="white", command=remove_sofa).pack(padx=10, pady=5, fill=tk.X)
+tk.Button(button_frame, text="Add Sofa", font=("Arial", 12), bg="lavender", fg="white", command=add_sofa).pack(padx=10, pady=5, fill=tk.X)
+tk.Button(button_frame, text="Update Sofa", font=("Arial", 12), bg="red", fg="white", command=update_sofa).pack(padx=10, pady=5, fill=tk.X)
+tk.Button(button_frame, text="Remove Sofa", font=("Arial", 12), bg="blue", fg="white", command=remove_sofa).pack(padx=10, pady=5, fill=tk.X)
 
-# Total Price Label
-total_label = tk.Label(root, text="Total Price: $0.00", font=("Arial", 14), bg="#E8DAEF", fg="black")
+
+total_label = tk.Label(root, text="Total Price: RS.0.00", font=("Arial", 14), bg="blue", fg="black")
 total_label.pack(pady=10)
 
-# Sofa List Table
+
 table_frame = tk.Frame(root)
 table_frame.pack(pady=15, fill=tk.BOTH, expand=True)
 
@@ -166,4 +188,3 @@ sofa_table.pack(fill=tk.BOTH, expand=True)
 display_sofas()
 
 root.mainloop()
-
